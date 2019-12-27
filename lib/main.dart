@@ -1,0 +1,519 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:preferences/preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'structures.dart' as structs;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PrefService.init();
+  runApp(MyApp());
+}
+
+Future<structs.User> fetchUser() async {
+  String apiKey = PrefService.get("api_key");
+  final response = await http.get(
+      "https://circleci.com/api/v1.1/me?circle-token=$apiKey", headers: {"Accept": "application/json"});
+
+  if (response.statusCode == 200) {
+    // If server returns an OK response, parse the JSON.
+    return structs.User.fromJson(json.decode(response.body));
+  } else {
+    // If that response was not OK, throw an error.
+    throw Exception('Failed to load user');
+  }
+}
+
+Future<List> fetchProjects() async {
+  String apiKey = PrefService.get("api_key");
+  List projects = [];
+  final response = await http.get(
+      "https://circleci.com/api/v1.1/projects?circle-token=$apiKey", headers: {"Accept": "application/json"});
+
+  if (response.statusCode == 200) {
+    var jsonResponse = json.decode(response.body);
+    for (int i = 0; i < jsonResponse.length; i++) {
+      projects.add(structs.Project.fromJson(jsonResponse[i]));
+    }
+    return projects;
+  } else {
+    throw Exception('Failed to load projects');
+  }
+}
+
+Future<List> fetchProjectBuilds(String slug, {int offset = 0}) async {
+  String apiKey = PrefService.get("api_key");
+  List<structs.BuildShallow> builds = [];
+
+  final response = await http.get(
+      "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey&shallow=true&limit=100&offset=$offset", headers: {"Accept": "application/json"});
+
+  if (response.statusCode == 200) {
+    var jsonResponse = json.decode(response.body);
+    for (int i = 0; i < jsonResponse.length; i++) {
+      builds.add(structs.BuildShallow.fromJson(jsonResponse[i]));
+    }
+    return builds;
+  } else {
+    throw Exception('Failed to load projects');
+  }
+}
+
+Future<structs.BuildDeep> fetchSingleBuild(String slug, int id) async {
+  String apiKey = PrefService.get("api_key");
+
+  final response = await http.get(
+      "https://circleci.com/api/v1.1/project/$slug/$id?circle-token=$apiKey", headers: {"Accept": "application/json"});
+
+  if (response.statusCode == 200) {
+      return structs.BuildDeep.fromJson(json.decode(response.body));
+  } else {
+    throw Exception('Failed to load projects');
+  }
+}
+
+Future<String> getCommandLog(String url) async {
+  final response = await http.get(
+      url);
+
+  if (response.statusCode == 200) {
+    var jsonResponse = json.decode(response.body);
+    return jsonResponse[0]["message"];
+  } else {
+    throw Exception('Failed to load log');
+  }
+}
+
+Future<String> runBuild(structs.Project project) async {
+  String slug = project.slug;
+  String apiKey = PrefService.get("api_key");
+
+  final response = await http.post(
+    "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey",
+    headers: {"Accept": "application/json"}
+  );
+  if (response.statusCode == 200) {
+    return "";
+  } else {
+    throw Exception('Failed to load log');
+  }
+}
+
+class MyApp extends StatefulWidget {
+  MyApp({Key key}) : super(key: key);
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Fetch Data Example',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: ProjectList(),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  @override
+  SettingsPageState createState() => SettingsPageState();
+}
+
+class SettingsPageState extends State<SettingsPage>{
+  Future<structs.User> user;
+
+  @override
+  void initState() {
+    super.initState();
+    user = fetchUser();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Settings'),
+        backgroundColor: Colors.black,
+      ),
+      body: _buildSettingsPage(),
+    );
+  }
+
+  _buildSettingsPage() {
+    return FutureBuilder(
+        future: fetchUser(),
+        builder: (BuildContext context, AsyncSnapshot snapshot) {
+          List <Widget> basicPrefPage = [
+            Padding(
+              padding: const EdgeInsets.all(15.0),
+              child: FlatButton(
+                  padding: const EdgeInsets.all(15.0),
+                  color: Colors.black,
+                  textColor: Colors.white,
+                  disabledColor: Colors.grey,
+                  splashColor: Colors.blueAccent,
+                  child: new Text(
+                    'Get API Key',
+                  ),
+                  onPressed: () => launch('https://circleci.com/account/api')),
+            ),
+            TextFieldPreference(
+              'API Key',
+              'api_key',
+            ),
+            Divider(),
+          ];
+          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData == true) {
+            structs.User user = snapshot.data;
+            print(user.avatar);
+            basicPrefPage.add(
+                Center(
+              child: new Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: new Container(
+                          width: 190.0,
+                          height: 190.0,
+                          decoration: new BoxDecoration(
+                              shape: BoxShape.circle,
+                              image: new DecorationImage(
+                                  fit: BoxFit.fill,
+                                  image: new NetworkImage(user.avatar)))),
+                    ),
+                    Text("Authenticated as " + user.login, style: TextStyle(fontSize: 16),),
+                  ]),
+            ));
+          }
+          return PreferencePage(basicPrefPage);
+        });
+  }
+}
+
+class ProjectList extends StatefulWidget {
+  @override
+  ProjectListState createState() => ProjectListState();
+}
+
+class ProjectListState extends State<ProjectList> {
+  final _biggerFont = const TextStyle(fontSize: 18.0);
+  Future<List> projects;
+
+  @override
+  void initState() {
+    super.initState();
+    projects = fetchProjects();
+  }
+
+  Widget _buildProjects() {
+    return FutureBuilder(
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+            projectSnap.hasData == null)) {
+          bool hasKey = PrefService.get("api_key") != "" ? true : false;
+          if (!hasKey) {
+            return Scaffold(body: Center(child: Text("Please set an API key under settings"),),);
+          }
+          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+        }
+
+        return ListView.builder(
+          itemCount: projectSnap.data.length,
+          itemBuilder: (context, index) {
+            structs.Project project = projectSnap.data[index];
+            List<Widget> list = [
+              ListTile(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SingleProject(project)),
+                  );
+                },
+                title: Text(
+                  project.name,
+                  style: _biggerFont,
+                ),
+                subtitle: Text(
+                  project.url,
+                ),
+              ),
+              Divider(),
+            ];
+            Column column = new Column(children: list,);
+            return column;
+          },
+        );
+      },
+      future: fetchProjects(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text('CircleCI Projects'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsPage()),
+              );
+            },
+            icon: Icon(Icons.settings),
+          )
+        ],
+      ),
+      body: _buildProjects(),
+    );
+  }
+}
+
+class SingleProject extends StatefulWidget {
+  final structs.Project project;
+  SingleProject(this.project);
+
+  @override
+  SingleProjectState createState() => SingleProjectState(this.project);
+}
+
+class SingleProjectState extends State<SingleProject> {
+  final structs.Project project;
+  int counter = 0;
+
+  SingleProjectState(this.project);
+
+  Future<List> builds;
+
+  @override
+  void initState() {
+    super.initState();
+    builds = fetchProjectBuilds(project.slug);
+  }
+
+  Widget _buildProject() {
+    return FutureBuilder(
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+                projectSnap.hasData == null)) {
+          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+        }
+        return ListView.builder(
+          itemCount: projectSnap.data.length,
+          itemBuilder: (context, index) {
+            structs.BuildShallow build = projectSnap.data[index];
+            List<Widget> list = [
+              ListTile(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SingleBuild(project, build)),
+                  );
+                },
+                title: Text(
+                  build.num.toString(),
+                  style: TextStyle(fontSize: 18.0),
+                ),
+                subtitle: Text(
+                  build.status.toUpperCase(),
+                ),
+              ),
+              Divider(),
+            ];
+            Column column = new Column(children: list,);
+            return column;
+          },
+        );
+      },
+      future: fetchProjectBuilds(project.slug),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(project.slug),
+      ),
+      body: _buildProject(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          runBuild(project);
+          // @TODO: Refresh page when triggered.
+        },
+        child: Icon(Icons.play_arrow),
+        backgroundColor: Colors.black,
+      ),
+    );
+  }
+}
+
+class SingleBuild extends StatefulWidget {
+  final structs.Project project;
+  final structs.BuildShallow shallowBuild;
+  SingleBuild(this.project, this.shallowBuild);
+
+  @override
+  SingleBuildState createState() => SingleBuildState(project, shallowBuild);
+}
+
+class SingleBuildState extends State<SingleBuild> {
+  final structs.Project project;
+  final structs.BuildShallow shallowBuild;
+
+  SingleBuildState(this.project, this.shallowBuild);
+
+  Future<structs.BuildDeep> deepBuild;
+
+  @override
+  void initState() {
+    super.initState();
+    deepBuild = fetchSingleBuild(this.project.slug, this.shallowBuild.num);
+  }
+
+  Widget _buildBuild() {
+    return FutureBuilder(
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+                projectSnap.hasData == null)) {
+          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+        }
+
+        structs.BuildDeep build = projectSnap.data;
+        Color statusColor = build.status == "success" ? Colors.green : Colors.red;
+        List<Widget> card = [
+          ListTile(
+            title: Text(build.commit,
+                style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text(build.triggeredBy),
+            leading: Icon(
+              Icons.label,
+              color: Colors.grey,
+            ),
+          ),
+          Divider(),
+        ];
+
+        // Build steps list.
+        for (int i = 0; i < build.steps.length; i++) {
+          structs.BuildStep step = build.steps[i];
+          Icon leadingIcon = Icon(Icons.check, color: Colors.green);
+          if (step.exitCode > 0 && step.exitCode < 10000) {
+            leadingIcon = Icon(Icons.error, color: Colors.red);
+          }
+          if (step.exitCode == 10000) {
+            leadingIcon = Icon(Icons.info, color: Colors.grey);
+          }
+          card.add(ListTile(
+            onTap: () {
+              if (step.log == "no log found") {
+                Scaffold.of(context).showSnackBar(SnackBar(
+                  content: Text("No log found"),
+                ));
+                return;
+              }
+              Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => BuildLog(step)),
+                  );
+                },
+                title: Text(step.name),
+                leading: leadingIcon,
+              )
+          );
+        }
+        return Scaffold(
+          body: Center(
+            child: ListView(
+              children: card,
+            )
+          ),);
+      },
+      future: fetchSingleBuild(project.slug, shallowBuild.num),
+    );
+  }
+
+  @override
+  Widget build(BuildContext curlontext) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(project.slug + "/" + shallowBuild.num.toString()),
+      ),
+      body: _buildBuild(),
+    );
+  }
+}
+
+class BuildLog extends StatefulWidget {
+  final structs.BuildStep step;
+  BuildLog(this.step);
+
+  @override
+  BuildLogState createState() => BuildLogState(this.step);
+}
+
+class BuildLogState extends State<BuildLog> {
+  final structs.BuildStep step;
+  BuildLogState(this.step);
+  Future<String> log;
+
+  @override
+  void initState() {
+    super.initState();
+    log = getCommandLog(this.step.log);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(step.name),
+      ),
+      body: _buildLog(),
+    );
+  }
+
+  Widget _buildLog() {
+    return FutureBuilder(
+        builder: (context, projectSnap) {
+          if (projectSnap.hasData == false ||
+              (projectSnap.connectionState == ConnectionState.none &&
+                  projectSnap.hasData == null)) {
+            return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+          }
+          String log = projectSnap.data;
+          return Scaffold(
+            backgroundColor: Colors.black87,
+            body: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SingleChildScrollView(
+              child: Text(log, style: TextStyle(fontFamily: "monospace", color: Colors.white),),
+            ),),
+          );
+        },
+      future: getCommandLog(step.log),
+    );
+  }
+
+}
