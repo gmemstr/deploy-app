@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:preferences/preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:web_socket_channel/io.dart';
 import 'structures.dart' as structs;
 
 void main() async {
@@ -42,7 +44,7 @@ Future<List> fetchProjects() async {
   }
 }
 
-Future<List> fetchProjectBuilds(String slug, {int offset = 0}) async {
+Future<List> fetchProjectBuilds(String slug, {int offset = 0, int qNum = 0}) async {
   String apiKey = PrefService.get("api_key");
   List<structs.BuildShallow> builds = [];
 
@@ -85,7 +87,7 @@ Future<String> getCommandLog(String url) async {
   }
 }
 
-Future<String> runBuild(structs.Project project) async {
+Future<int> runBuild(structs.Project project) async {
   String slug = project.slug;
   String apiKey = PrefService.get("api_key");
 
@@ -93,8 +95,11 @@ Future<String> runBuild(structs.Project project) async {
     "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey",
     headers: {"Accept": "application/json"}
   );
-  if (response.statusCode == 200) {
-    return "";
+
+  if (response.statusCode == 201) {
+    var jsonResponse = json.decode(response.body);
+    print(response.body);
+    return jsonResponse["build_num"];
   } else {
     throw Exception('Failed to load log');
   }
@@ -295,16 +300,12 @@ class SingleProject extends StatefulWidget {
 
 class SingleProjectState extends State<SingleProject> {
   final structs.Project project;
-  int counter = 0;
-
   SingleProjectState(this.project);
-
   Future<List> builds;
 
   @override
   void initState() {
     super.initState();
-    builds = fetchProjectBuilds(project.slug);
   }
 
   Widget _buildProject() {
@@ -353,16 +354,33 @@ class SingleProjectState extends State<SingleProject> {
         backgroundColor: Colors.black,
         title: Text(project.slug),
       ),
-      body: _buildProject(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          runBuild(project);
-          // @TODO: Refresh page when triggered.
-        },
-        child: Icon(Icons.play_arrow),
-        backgroundColor: Colors.black,
+      body: new RefreshIndicator(
+        child: _buildProject(),
+        onRefresh: _handleRefresh,
       ),
+      floatingActionButton: new Builder(builder: (BuildContext context) {
+        return new FloatingActionButton(
+            child: Icon(Icons.play_arrow),
+            backgroundColor: Colors.black,
+            onPressed: () async {
+              Scaffold.of(context).showSnackBar(SnackBar(
+                content: Text("New build started"),
+              ));
+              int newBuildNum = await runBuild(project);
+              setState(() {
+                builds = fetchProjectBuilds(project.slug, qNum: newBuildNum);
+              });
+            });
+      }),
     );
+  }
+
+  // Refresh the state.
+  Future<Null> _handleRefresh() async {
+    setState(() {});
+    await new Future.delayed(new Duration(seconds: 1));
+
+    return null;
   }
 }
 
@@ -399,7 +417,6 @@ class SingleBuildState extends State<SingleBuild> {
         }
 
         structs.BuildDeep build = projectSnap.data;
-        Color statusColor = build.status == "success" ? Colors.green : Colors.red;
         List<Widget> card = [
           ListTile(
             title: Text(build.commit,
@@ -453,14 +470,25 @@ class SingleBuildState extends State<SingleBuild> {
   }
 
   @override
-  Widget build(BuildContext curlontext) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.black,
         title: Text(project.slug + "/" + shallowBuild.num.toString()),
       ),
-      body: _buildBuild(),
+      body: new RefreshIndicator(
+        child: _buildBuild(),
+        onRefresh: _handleRefresh,
+      ),
     );
+  }
+
+  // Refresh the state.
+  Future<Null> _handleRefresh() async {
+    setState(() {});
+    await new Future.delayed(new Duration(seconds: 1));
+
+    return null;
   }
 }
 

@@ -48,6 +48,14 @@ class BuildShallow {
       {this.num, this.oss, this.buildUrl, this.branch, this.triggeredBy, this.status, this.startTime, this.finishTime});
 
   factory BuildShallow.fromJson(Map<String, dynamic> json) {
+    DateTime startTime = DateTime.now();
+    DateTime finishTime = DateTime.now();
+    if (json["start_time"] != null) {
+      startTime = DateTime.parse(json["start_time"]);
+    }
+    if (json["finish_time"] != null) {
+      finishTime = DateTime.parse(json["finish_time"]);
+    }
     return BuildShallow(
       num: json['build_num'],
       oss: json['oss'],
@@ -55,8 +63,8 @@ class BuildShallow {
       branch: json['branch'],
       triggeredBy: json['user']['login'],
       status: json['status'],
-      startTime: DateTime.parse(json["start_time"]),
-      finishTime: DateTime.parse(json["stop_time"]),
+      startTime: startTime,
+      finishTime: finishTime,
     );
   }
 }
@@ -120,6 +128,8 @@ class BuildStep {
       log: json["actions"][0]["output_url"] ?? "no log found",
       name: json["name"],
       command: json["bash_command"] ?? "",
+      // If the exit code is null, assume it's a built in command.
+      // e.g Saving artifacts, checkout.
       exitCode: json["actions"][0]["exit_code"] ?? 10000,
       status: json["status"],
       runtime: json["runtime_in_ms"],
