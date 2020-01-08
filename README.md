@@ -1,16 +1,22 @@
-# cci_app
+# CircleCI Flutter Client
 
-CCI API
+<a href='https://play.google.com/store/apps/details?id=dev.gmem.cci.cci_app&ah=WZfJbfSMQvAo8DzlLMDwyk1qD-Q&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img width=170 alt='Get it on Google Play' src='https://play.google.com/intl/en_gb/badges/static/images/badges/en_badge_web_generic.png'/></a>
 
-## Getting Started
+View and run jobs from your mobile device!
 
-This project is a starting point for a Flutter application.
+## About
 
-A few resources to get you started if this is your first Flutter project:
+This is a Flutter app written as an experiment for interacting with the CircleCI API. Despite being an employee of 
+CircleCI, this should not be considered an official app.
 
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
+[Flutter](https://flutter.dev/docs/get-started/install) is required to build this project. 
+[IntelliJ IDEA](https://www.jetbrains.com/idea/) is the easiest way to get up and running with the Fluter plugin, and
+generally recommended as the editor for playing with this project.
 
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Currently, only Android is officially supported, but theoretically it should be possible to build for iOS as well.
+
+## Building
+
+`flutter build apk --target-platform android-arm,android-arm64,android-x64 --split-per-abi` will generate APKs for each
+platform that can be installed on the device. Otherwise, `flutter install` can be used to install the app on a device
+connected with debugging enabled.
