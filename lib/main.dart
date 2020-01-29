@@ -163,7 +163,7 @@ class SettingsPageState extends State<SettingsPage>{
   @override
   void initState() {
     super.initState();
-    user = fetchUser();
+    this.user = fetchUser();
   }
 
   @override
@@ -179,7 +179,7 @@ class SettingsPageState extends State<SettingsPage>{
 
   _buildSettingsPage() {
     return FutureBuilder(
-        future: fetchUser(),
+        future: this.user,
         builder: (BuildContext context, AsyncSnapshot snapshot) {
           List <Widget> basicPrefPage = [
             Padding(
@@ -426,7 +426,7 @@ class SingleBuildState extends State<SingleBuild> {
   @override
   void initState() {
     super.initState();
-    deepBuild = fetchSingleBuild(this.project.slug, this.shallowBuild.num);
+    this.deepBuild = fetchSingleBuild(project.slug, shallowBuild.num);
   }
 
   Widget _buildBuild() {
@@ -487,7 +487,7 @@ class SingleBuildState extends State<SingleBuild> {
             )
           ),);
       },
-      future: fetchSingleBuild(project.slug, shallowBuild.num),
+      future: this.deepBuild,
     );
   }
 
@@ -519,7 +519,7 @@ class SingleBuildState extends State<SingleBuild> {
           card.add(ListTile(
             onTap: () async {
               Directory dir = await getTemporaryDirectory();
-              final taskId = await FlutterDownloader.enqueue(
+              await FlutterDownloader.enqueue(
                 url: artifact.url,
                 savedDir: dir.path,
                 showNotification: true,
@@ -538,6 +538,34 @@ class SingleBuildState extends State<SingleBuild> {
           ),);
       },
       future: getArtifacts(project, shallowBuild),
+    );
+  }
+
+  Widget _buildConfigViewer() {
+    return FutureBuilder(
+        builder: (context, projectSnap) {
+          if (projectSnap.hasData == false ||
+              (projectSnap.connectionState == ConnectionState.none &&
+                  projectSnap.hasData == null)) {
+            return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+          }
+
+          String config = projectSnap.data.configuration;
+
+          Widget body = Text(
+            config,
+            style: TextStyle(fontFamily: "monospace", color: Colors.white),
+          );
+          return Scaffold(
+              backgroundColor: Colors.black,
+              body: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SingleChildScrollView(
+                  child: body,
+                ),
+              ));
+        },
+      future: this.deepBuild,
     );
   }
 
@@ -562,7 +590,7 @@ class SingleBuildState extends State<SingleBuild> {
             onRefresh: _handleRefresh,
           ),
           _buildArtifactList(),
-          Center(child: Text("Coming soon")),
+          _buildConfigViewer(),
         ]),
       ),
       length: 3,

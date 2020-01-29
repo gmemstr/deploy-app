@@ -78,6 +78,7 @@ class BuildDeep {
   final String status;
   final List<BuildStep> steps;
   final String commit;
+  final String configuration;
 
   BuildDeep(
       {this.steps,
@@ -87,7 +88,8 @@ class BuildDeep {
       this.branch,
       this.triggeredBy,
       this.status,
-      this.commit});
+      this.commit,
+      this.configuration});
 
   factory BuildDeep.fromJson(Map<String, dynamic> json) {
     List<BuildStep> stepList = List();
@@ -108,6 +110,7 @@ class BuildDeep {
       triggeredBy: json['user']['login'],
       status: json['status'],
       commit: commit,
+      configuration: json['circle_yml']['string'],
     );
   }
 }
