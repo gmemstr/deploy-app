@@ -1,15 +1,18 @@
 import 'dart:convert';
 import 'dart:core';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:preferences/preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:web_socket_channel/io.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:path_provider/path_provider.dart';
 import 'structures.dart' as structs;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PrefService.init();
+  await FlutterDownloader.initialize();
   runApp(MyApp());
 }
 
@@ -98,10 +101,29 @@ Future<int> runBuild(structs.Project project) async {
 
   if (response.statusCode == 201) {
     var jsonResponse = json.decode(response.body);
-    print(response.body);
     return jsonResponse["build_num"];
   } else {
     throw Exception('Failed to load log');
+  }
+}
+
+Future<List> getArtifacts(structs.Project project, structs.BuildShallow build) async {
+  String apiKey = PrefService.get("api_key");
+  String slug = project.slug + "/" + build.num.toString();
+
+  List<structs.Artifact> artifacts = [];
+
+  final response = await http.get(
+      "https://circleci.com/api/v2/project/$slug/artifacts?circle-token=$apiKey", headers: {"Accept": "application/json"});
+
+  if (response.statusCode == 200) {
+    var jsonResponse = json.decode(response.body);
+    for (int i = 0; i < jsonResponse["items"].length; i++) {
+      artifacts.add(structs.Artifact.fromJson(jsonResponse["items"][i]));
+    }
+    return artifacts;
+  } else {
+    throw Exception('Failed to load artifacts');
   }
 }
 
@@ -181,7 +203,6 @@ class SettingsPageState extends State<SettingsPage>{
           ];
           if (snapshot.connectionState == ConnectionState.done && snapshot.hasData == true) {
             structs.User user = snapshot.data;
-            print(user.avatar);
             basicPrefPage.add(
                 Center(
               child: new Column(
@@ -229,7 +250,7 @@ class ProjectListState extends State<ProjectList> {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
             projectSnap.hasData == null)) {
-          bool hasKey = PrefService.get("api_key") != "" ? true : false;
+          bool hasKey = (PrefService.get("api_key") != ""  || !PrefService.get("api_key")) ? true : false;
           if (!hasKey) {
             return Scaffold(body: Center(child: Text("Please set an API key under settings"),),);
           }
@@ -400,6 +421,7 @@ class SingleBuildState extends State<SingleBuild> {
   SingleBuildState(this.project, this.shallowBuild);
 
   Future<structs.BuildDeep> deepBuild;
+  Future<List<structs.Artifact>> artifacts;
 
   @override
   void initState() {
@@ -433,9 +455,9 @@ class SingleBuildState extends State<SingleBuild> {
         // Build steps list.
         for (int i = 0; i < build.steps.length; i++) {
           structs.BuildStep step = build.steps[i];
-          Icon leadingIcon = Icon(Icons.check, color: Colors.green);
+          Icon leadingIcon = Icon(Icons.check, color: hexToColor("#42C88A"));
           if (step.exitCode > 0 && step.exitCode < 10000) {
-            leadingIcon = Icon(Icons.error, color: Colors.red);
+            leadingIcon = Icon(Icons.error, color: hexToColor("#ED5C5C"));
           }
           if (step.exitCode == 10000) {
             leadingIcon = Icon(Icons.info, color: Colors.grey);
@@ -469,17 +491,81 @@ class SingleBuildState extends State<SingleBuild> {
     );
   }
 
+  Widget _buildArtifactList() {
+    return FutureBuilder(
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+                projectSnap.hasData == null)) {
+          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+        }
+
+        List artifacts = projectSnap.data;
+        List<Widget> card = [
+          ListTile(
+            title: Text("Artifacts",
+                style: TextStyle(fontWeight: FontWeight.w500)),
+            leading: Icon(
+              Icons.cloud_download,
+              color: Colors.grey,
+            ),
+          ),
+          Divider(),
+        ];
+
+        // Build steps list.
+        for (int i = 0; i < artifacts.length; i++) {
+          structs.Artifact artifact = artifacts[i];
+          card.add(ListTile(
+            onTap: () async {
+              Directory dir = await getTemporaryDirectory();
+              final taskId = await FlutterDownloader.enqueue(
+                url: artifact.url,
+                savedDir: dir.path,
+                showNotification: true,
+                openFileFromNotification: true,
+              );
+            },
+            title: Text(artifact.path),
+          )
+          );
+        }
+        return Scaffold(
+          body: Center(
+              child: ListView(
+                children: card,
+              )
+          ),);
+      },
+      future: getArtifacts(project, shallowBuild),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Text(project.slug + "/" + shallowBuild.num.toString()),
+    return DefaultTabController(
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          title: Text(project.slug + "/" + shallowBuild.num.toString()),
+          bottom: TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.description)),
+              Tab(icon: Icon(Icons.cloud_download)),
+              Tab(icon: Icon(Icons.code)),
+            ],
+          ),
+        ),
+        body: TabBarView(children: [
+          new RefreshIndicator(
+            child: _buildBuild(),
+            onRefresh: _handleRefresh,
+          ),
+          _buildArtifactList(),
+          Center(child: Text("Coming soon")),
+        ]),
       ),
-      body: new RefreshIndicator(
-        child: _buildBuild(),
-        onRefresh: _handleRefresh,
-      ),
+      length: 3,
     );
   }
 
@@ -544,4 +630,8 @@ class BuildLogState extends State<BuildLog> {
     );
   }
 
+}
+
+Color hexToColor(String code) {
+  return new Color(int.parse(code.substring(1, 7), radix: 16) + 0xFF000000);
 }

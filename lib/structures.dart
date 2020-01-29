@@ -138,3 +138,22 @@ class BuildStep {
   }
 
 }
+class Artifact {
+  final String path;
+  final String name;
+  final String extension;
+  final String url;
+
+  Artifact({this.path, this.name, this.extension, this.url});
+
+  factory Artifact.fromJson(Map<String, dynamic> json) {
+    String filename = json["path"].split("/").last;
+    String extension = filename.split(".").last;
+    return Artifact(
+      path: json["path"],
+      name: filename,
+      extension: extension,
+      url: json["url"],
+    );
+  }
+}
