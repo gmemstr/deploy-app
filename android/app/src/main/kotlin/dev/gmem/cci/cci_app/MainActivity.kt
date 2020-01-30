@@ -1,4 +1,4 @@
-package dev.gmem.cci.cci_app
+package dev.gmem.cci
 
 import android.os.Bundle
 

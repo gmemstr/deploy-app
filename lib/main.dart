@@ -549,8 +549,8 @@ class SingleBuildState extends State<SingleBuild> {
                   projectSnap.hasData == null)) {
             return Scaffold(body: Center(child: CircularProgressIndicator(),),);
           }
-
-          String config = projectSnap.data.configuration;
+          structs.BuildDeep build = projectSnap.data;
+          String config = build.configuration;
 
           Widget body = Text(
             config,

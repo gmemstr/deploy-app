@@ -1,6 +1,6 @@
 # DEPLOY - CircleCI Mobile Client
 
-<a href='https://play.google.com/store/apps/details?id=dev.gmem.cci.cci_app&ah=WZfJbfSMQvAo8DzlLMDwyk1qD-Q&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img width=170 alt='Get it on Google Play' src='https://play.google.com/intl/en_gb/badges/static/images/badges/en_badge_web_generic.png'/></a>
+<a href='https://play.google.com/store/apps/details?id=dev.gmem.cci&ah=WZfJbfSMQvAo8DzlLMDwyk1qD-Q&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img width=170 alt='Get it on Google Play' src='https://play.google.com/intl/en_gb/badges/static/images/badges/en_badge_web_generic.png'/></a>
 
 View and run jobs from your mobile device!
 
