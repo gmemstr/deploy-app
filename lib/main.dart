@@ -245,15 +245,16 @@ class ProjectListState extends State<ProjectList> {
   }
 
   Widget _buildProjects() {
+    bool hasKey = PrefService.get("api_key") != "";
+    if (!hasKey) {
+      return Scaffold(body: Center(child: Text("Please set an API key under settings"),),);
+    }
+
     return FutureBuilder(
       builder: (context, projectSnap) {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
             projectSnap.hasData == null)) {
-          bool hasKey = (PrefService.get("api_key") != ""  || !PrefService.get("api_key")) ? true : false;
-          if (!hasKey) {
-            return Scaffold(body: Center(child: Text("Please set an API key under settings"),),);
-          }
           return Scaffold(body: Center(child: CircularProgressIndicator(),),);
         }
 
