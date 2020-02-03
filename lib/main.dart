@@ -245,9 +245,9 @@ class ProjectListState extends State<ProjectList> {
   }
 
   Widget _buildProjects() {
-    bool hasKey = PrefService.get("api_key") != "";
+    bool hasKey = (PrefService.get("api_key") != "" && PrefService.get("api_key") != null);
     if (!hasKey) {
-      return Scaffold(body: Center(child: Text("Please set an API key under settings"),),);
+      return Scaffold(body: Center(child: Text("Please set an API key under Settings", style: TextStyle(fontSize: 16),),),);
     }
 
     return FutureBuilder(
