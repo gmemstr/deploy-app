@@ -13,8 +13,10 @@ jobs:
     <<: *android_config
     steps:
       - checkout
-      - run: mkdir -p /home/gsimmer && echo "$PLAY_STORE_UPLOAD_KEY" | base64 --decode > /home/gsimmer/key.jks
-      - run: cd android
+      - run: sudo mkdir -p /home/gsimmer && sudo chown cirrus /home/gsimmer
+      - run: echo "$PLAY_STORE_UPLOAD_KEY" | base64 --decode > /home/gsimmer/key.jks
+      - run: echo "$PLAY_STORE_UPLOAD_KEY_INFO" | base64 --decode > project/android/key.properties
+      - run: cd project/android
       - run: fastlane android beta_deploy
 
 workflows:
