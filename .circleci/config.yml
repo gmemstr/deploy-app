@@ -13,6 +13,7 @@ jobs:
     <<: *android_config
     steps:
       - checkout
+      - run: mkdir -p /home/gsimmer && echo "$PLAY_STORE_UPLOAD_KEY" | base64 --decode > /home/gsimmer/key.jks
       - run: cd android
       - run: fastlane android beta_deploy
 
