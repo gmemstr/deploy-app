@@ -1,0 +1,3 @@
+Unofficial CircleCI Android client - view your projects, jobs, and logs directly from your mobile device.
+
+Requires a CircleCI API key. Due to limitations, only projects followed within CircleCI will be displayed.

@@ -1,0 +1,7 @@
+Beta is here! 
+
+* View followed projects and the last 100 builds for each project
+* View job logs, artifacts and configurations
+* Trigger new jobs for a project
+
+Please submit feedback, bugs etc.
