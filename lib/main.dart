@@ -342,23 +342,28 @@ class SingleProjectState extends State<SingleProject> {
           itemCount: projectSnap.data.length,
           itemBuilder: (context, index) {
             structs.BuildShallow build = projectSnap.data[index];
+            Icon leadingIcon = Icon(Icons.check, color: hexToColor("#42C88A"));
+            if (build.status != "success") {
+              leadingIcon = Icon(Icons.error, color: hexToColor("#ED5C5C"));
+            }
+            
             List<Widget> list = [
-              ListTile(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SingleBuild(project, build)),
-                  );
-                },
-                title: Text(
-                  build.num.toString(),
-                  style: TextStyle(fontSize: 18.0),
-                ),
-                subtitle: Text(
-                  build.status.toUpperCase(),
-                ),
+              Card(
+                  child: InkWell(
+                    onTap: () { Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => SingleBuild(project, build)),
+                    );
+                  },
+                    child: Container(child:
+                      ListTile(
+                        leading: leadingIcon,
+                        title: Text(build.num.toString(), style: TextStyle(fontSize: 18.0),),
+                        subtitle: Text(build.status.toUpperCase(),),
+                      ),
+                    ),
+                  )
               ),
-              Divider(),
             ];
             Column column = new Column(children: list,);
             return column;
