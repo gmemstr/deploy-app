@@ -1,7 +1,7 @@
-import 'dart:ffi';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
+/// This file contains classes to handle data responses from CircleCI's v1.0
+/// and v1.1 API endpoints.
+///
+/// https://circleci.com/docs/api
 class User {
   final String login;
   final String avatar;
@@ -9,10 +9,7 @@ class User {
   User({this.login, this.avatar});
 
   factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      login: json['login'],
-      avatar: json['avatar_url']
-    );
+    return User(login: json['login'], avatar: json['avatar_url']);
   }
 }
 
@@ -45,7 +42,14 @@ class BuildShallow {
   final DateTime finishTime;
 
   BuildShallow(
-      {this.num, this.oss, this.buildUrl, this.branch, this.triggeredBy, this.status, this.startTime, this.finishTime});
+      {this.num,
+      this.oss,
+      this.buildUrl,
+      this.branch,
+      this.triggeredBy,
+      this.status,
+      this.startTime,
+      this.finishTime});
 
   factory BuildShallow.fromJson(Map<String, dynamic> json) {
     DateTime startTime = DateTime.now();
@@ -124,7 +128,14 @@ class BuildStep {
   final bool background;
   final String log;
 
-  BuildStep({this.name, this.command, this.exitCode, this.status, this.runtime, this.background, this.log});
+  BuildStep(
+      {this.name,
+      this.command,
+      this.exitCode,
+      this.status,
+      this.runtime,
+      this.background,
+      this.log});
 
   factory BuildStep.fromJson(Map<String, dynamic> json) {
     return BuildStep(
@@ -139,8 +150,8 @@ class BuildStep {
       background: json["background"],
     );
   }
-
 }
+
 class Artifact {
   final String path;
   final String name;

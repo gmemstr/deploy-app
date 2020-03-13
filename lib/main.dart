@@ -1,29 +1,32 @@
 import 'dart:convert';
 import 'dart:core';
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:preferences/preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:path_provider/path_provider.dart';
-import 'structures.dart' as structs;
+import 'circleci-v1.dart' as circleciv1;
+import 'circleci-v2.dart' as circleciv2;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PrefService.init();
   await FlutterDownloader.initialize();
-  runApp(MyApp());
+  runApp(DeployApp());
 }
 
-Future<structs.User> fetchUser() async {
+Future<circleciv1.User> fetchUser() async {
   String apiKey = PrefService.get("api_key");
   final response = await http.get(
-      "https://circleci.com/api/v1.1/me?circle-token=$apiKey", headers: {"Accept": "application/json"});
+      "https://circleci.com/api/v1.1/me?circle-token=$apiKey",
+      headers: {"Accept": "application/json"});
 
   if (response.statusCode == 200) {
     // If server returns an OK response, parse the JSON.
-    return structs.User.fromJson(json.decode(response.body));
+    return circleciv1.User.fromJson(json.decode(response.body));
   } else {
     // If that response was not OK, throw an error.
     throw Exception('Failed to load user');
@@ -34,12 +37,13 @@ Future<List> fetchProjects() async {
   String apiKey = PrefService.get("api_key");
   List projects = [];
   final response = await http.get(
-      "https://circleci.com/api/v1.1/projects?circle-token=$apiKey", headers: {"Accept": "application/json"});
+      "https://circleci.com/api/v1.1/projects?circle-token=$apiKey",
+      headers: {"Accept": "application/json"});
 
   if (response.statusCode == 200) {
     var jsonResponse = json.decode(response.body);
     for (int i = 0; i < jsonResponse.length; i++) {
-      projects.add(structs.Project.fromJson(jsonResponse[i]));
+      projects.add(circleciv1.Project.fromJson(jsonResponse[i]));
     }
     return projects;
   } else {
@@ -47,40 +51,40 @@ Future<List> fetchProjects() async {
   }
 }
 
-Future<List> fetchProjectBuilds(String slug, {int offset = 0, int qNum = 0}) async {
+Future<List> fetchProjectPipelines(String slug,
+    {String nextPageToken = ""}) async {
   String apiKey = PrefService.get("api_key");
-  List<structs.BuildShallow> builds = [];
+  List<circleciv2.Pipeline> pipelines = [];
 
   final response = await http.get(
-      "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey&shallow=true&limit=100&offset=$offset", headers: {"Accept": "application/json"});
+      "https://circleci.com/api/v2/project/$slug/pipeline",
+      headers: {"Accept": "application/json", "Circle-Token": apiKey});
 
   if (response.statusCode == 200) {
-    var jsonResponse = json.decode(response.body);
-    for (int i = 0; i < jsonResponse.length; i++) {
-      builds.add(structs.BuildShallow.fromJson(jsonResponse[i]));
-    }
-    return builds;
+    pipelines = circleciv2.Pipeline.fromResponseJson(response.body);
   } else {
     throw Exception('Failed to load projects');
   }
+
+  return pipelines;
 }
 
-Future<structs.BuildDeep> fetchSingleBuild(String slug, int id) async {
+Future<circleciv1.BuildDeep> fetchSingleBuild(String slug, int id) async {
   String apiKey = PrefService.get("api_key");
 
   final response = await http.get(
-      "https://circleci.com/api/v1.1/project/$slug/$id?circle-token=$apiKey", headers: {"Accept": "application/json"});
+      "https://circleci.com/api/v1.1/project/$slug/$id?circle-token=$apiKey",
+      headers: {"Accept": "application/json"});
 
   if (response.statusCode == 200) {
-      return structs.BuildDeep.fromJson(json.decode(response.body));
+    return circleciv1.BuildDeep.fromJson(json.decode(response.body));
   } else {
     throw Exception('Failed to load projects');
   }
 }
 
 Future<String> getCommandLog(String url) async {
-  final response = await http.get(
-      url);
+  final response = await http.get(url);
 
   if (response.statusCode == 200) {
     var jsonResponse = json.decode(response.body);
@@ -90,14 +94,13 @@ Future<String> getCommandLog(String url) async {
   }
 }
 
-Future<int> runBuild(structs.Project project) async {
+Future<int> runBuild(circleciv1.Project project) async {
   String slug = project.slug;
   String apiKey = PrefService.get("api_key");
 
   final response = await http.post(
-    "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey",
-    headers: {"Accept": "application/json"}
-  );
+      "https://circleci.com/api/v1.1/project/$slug?circle-token=$apiKey",
+      headers: {"Accept": "application/json"});
 
   if (response.statusCode == 201) {
     var jsonResponse = json.decode(response.body);
@@ -107,19 +110,21 @@ Future<int> runBuild(structs.Project project) async {
   }
 }
 
-Future<List> getArtifacts(structs.Project project, structs.BuildShallow build) async {
+Future<List> getArtifacts(
+    circleciv1.Project project, circleciv1.BuildShallow build) async {
   String apiKey = PrefService.get("api_key");
   String slug = project.slug + "/" + build.num.toString();
 
-  List<structs.Artifact> artifacts = [];
+  List<circleciv1.Artifact> artifacts = [];
 
   final response = await http.get(
-      "https://circleci.com/api/v2/project/$slug/artifacts?circle-token=$apiKey", headers: {"Accept": "application/json"});
+      "https://circleci.com/api/v2/project/$slug/artifacts?circle-token=$apiKey",
+      headers: {"Accept": "application/json"});
 
   if (response.statusCode == 200) {
     var jsonResponse = json.decode(response.body);
     for (int i = 0; i < jsonResponse["items"].length; i++) {
-      artifacts.add(structs.Artifact.fromJson(jsonResponse["items"][i]));
+      artifacts.add(circleciv1.Artifact.fromJson(jsonResponse["items"][i]));
     }
     return artifacts;
   } else {
@@ -127,14 +132,14 @@ Future<List> getArtifacts(structs.Project project, structs.BuildShallow build) a
   }
 }
 
-class MyApp extends StatefulWidget {
-  MyApp({Key key}) : super(key: key);
+class DeployApp extends StatefulWidget {
+  DeployApp({Key key}) : super(key: key);
 
   @override
-  _MyAppState createState() => _MyAppState();
+  _DeployAppState createState() => _DeployAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _DeployAppState extends State<DeployApp> {
   @override
   void initState() {
     super.initState();
@@ -157,8 +162,8 @@ class SettingsPage extends StatefulWidget {
   SettingsPageState createState() => SettingsPageState();
 }
 
-class SettingsPageState extends State<SettingsPage>{
-  Future<structs.User> user;
+class SettingsPageState extends State<SettingsPage> {
+  Future<circleciv1.User> user;
 
   @override
   void initState() {
@@ -181,7 +186,7 @@ class SettingsPageState extends State<SettingsPage>{
     return FutureBuilder(
         future: this.user,
         builder: (BuildContext context, AsyncSnapshot snapshot) {
-          List <Widget> basicPrefPage = [
+          List<Widget> basicPrefPage = [
             Padding(
               padding: const EdgeInsets.all(15.0),
               child: FlatButton(
@@ -201,10 +206,10 @@ class SettingsPageState extends State<SettingsPage>{
             ),
             Divider(),
           ];
-          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData == true) {
-            structs.User user = snapshot.data;
-            basicPrefPage.add(
-                Center(
+          if (snapshot.connectionState == ConnectionState.done &&
+              snapshot.hasData == true) {
+            circleciv1.User user = snapshot.data;
+            basicPrefPage.add(Center(
               child: new Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -220,7 +225,10 @@ class SettingsPageState extends State<SettingsPage>{
                                   fit: BoxFit.fill,
                                   image: new NetworkImage(user.avatar)))),
                     ),
-                    Text("Authenticated as " + user.login, style: TextStyle(fontSize: 16),),
+                    Text(
+                      "Authenticated as " + user.login,
+                      style: TextStyle(fontSize: 16),
+                    ),
                   ]),
             ));
           }
@@ -245,29 +253,42 @@ class ProjectListState extends State<ProjectList> {
   }
 
   Widget _buildProjects() {
-    bool hasKey = (PrefService.get("api_key") != "" && PrefService.get("api_key") != null);
+    bool hasKey = (PrefService.get("api_key") != "" &&
+        PrefService.get("api_key") != null);
     if (!hasKey) {
-      return Scaffold(body: Center(child: Text("Please set an API key under Settings", style: TextStyle(fontSize: 16),),),);
+      return Scaffold(
+        body: Center(
+          child: Text(
+            "Please set an API key under Settings",
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      );
     }
 
     return FutureBuilder(
       builder: (context, projectSnap) {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
-            projectSnap.hasData == null)) {
-          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+                projectSnap.hasData == null)) {
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         return ListView.builder(
           itemCount: projectSnap.data.length,
           itemBuilder: (context, index) {
-            structs.Project project = projectSnap.data[index];
+            circleciv1.Project project = projectSnap.data[index];
             List<Widget> list = [
               ListTile(
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => SingleProject(project)),
+                    MaterialPageRoute(
+                        builder: (context) => SingleProject(project)),
                   );
                 },
                 title: Text(
@@ -280,7 +301,9 @@ class ProjectListState extends State<ProjectList> {
               ),
               Divider(),
             ];
-            Column column = new Column(children: list,);
+            Column column = new Column(
+              children: list,
+            );
             return column;
           },
         );
@@ -313,7 +336,7 @@ class ProjectListState extends State<ProjectList> {
 }
 
 class SingleProject extends StatefulWidget {
-  final structs.Project project;
+  final circleciv1.Project project;
   SingleProject(this.project);
 
   @override
@@ -321,7 +344,7 @@ class SingleProject extends StatefulWidget {
 }
 
 class SingleProjectState extends State<SingleProject> {
-  final structs.Project project;
+  final circleciv1.Project project;
   SingleProjectState(this.project);
   Future<List> builds;
 
@@ -336,41 +359,45 @@ class SingleProjectState extends State<SingleProject> {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
                 projectSnap.hasData == null)) {
-          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
         return ListView.builder(
           itemCount: projectSnap.data.length,
           itemBuilder: (context, index) {
-            structs.BuildShallow build = projectSnap.data[index];
-            Icon leadingIcon = Icon(Icons.check, color: hexToColor("#42C88A"));
-            if (build.status != "success") {
-              leadingIcon = Icon(Icons.error, color: hexToColor("#ED5C5C"));
-            }
-            
+            circleciv2.Pipeline pipeline = projectSnap.data[index];
+
             List<Widget> list = [
               Card(
                   child: InkWell(
-                    onTap: () { Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => SingleBuild(project, build)),
-                    );
-                  },
-                    child: Container(child:
-                      ListTile(
-                        leading: leadingIcon,
-                        title: Text(build.num.toString(), style: TextStyle(fontSize: 18.0),),
-                        subtitle: Text(build.status.toUpperCase(),),
+//                 onTap: () { Navigator.push(
+//                  context,
+//                  MaterialPageRoute(builder: (context) => SingleBuild(project, pipeline))),
+//                 },
+                child: Container(
+                  child: ListTile(
+                      title: Text(
+                        "#" + pipeline.number.toString(),
+                        style: TextStyle(fontSize: 18.0),
                       ),
-                    ),
-                  )
-              ),
+                      subtitle: Text(pipeline.vcs.commitSubject),
+                      trailing: Column(children: [
+                        Text(pipeline.trigger.actorLogin),
+                        Text(pipeline.vcs.branchTag),
+                      ])),
+                ),
+              )),
             ];
-            Column column = new Column(children: list,);
-            return column;
+            return new Column(
+              children: list,
+            );
           },
         );
       },
-      future: fetchProjectBuilds(project.slug),
+      future: fetchProjectPipelines(project.slug),
     );
   }
 
@@ -395,7 +422,7 @@ class SingleProjectState extends State<SingleProject> {
               ));
               int newBuildNum = await runBuild(project);
               setState(() {
-                builds = fetchProjectBuilds(project.slug, qNum: newBuildNum);
+                builds = fetchProjectPipelines(project.slug);
               });
             });
       }),
@@ -412,8 +439,8 @@ class SingleProjectState extends State<SingleProject> {
 }
 
 class SingleBuild extends StatefulWidget {
-  final structs.Project project;
-  final structs.BuildShallow shallowBuild;
+  final circleciv1.Project project;
+  final circleciv1.BuildShallow shallowBuild;
   SingleBuild(this.project, this.shallowBuild);
 
   @override
@@ -421,13 +448,13 @@ class SingleBuild extends StatefulWidget {
 }
 
 class SingleBuildState extends State<SingleBuild> {
-  final structs.Project project;
-  final structs.BuildShallow shallowBuild;
+  final circleciv1.Project project;
+  final circleciv1.BuildShallow shallowBuild;
 
   SingleBuildState(this.project, this.shallowBuild);
 
-  Future<structs.BuildDeep> deepBuild;
-  Future<List<structs.Artifact>> artifacts;
+  Future<circleciv1.BuildDeep> deepBuild;
+  Future<List<circleciv1.Artifact>> artifacts;
 
   @override
   void initState() {
@@ -441,10 +468,14 @@ class SingleBuildState extends State<SingleBuild> {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
                 projectSnap.hasData == null)) {
-          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
-        structs.BuildDeep build = projectSnap.data;
+        circleciv1.BuildDeep build = projectSnap.data;
         List<Widget> card = [
           ListTile(
             title: Text(build.commit,
@@ -460,7 +491,7 @@ class SingleBuildState extends State<SingleBuild> {
 
         // Build steps list.
         for (int i = 0; i < build.steps.length; i++) {
-          structs.BuildStep step = build.steps[i];
+          circleciv1.BuildStep step = build.steps[i];
           Icon leadingIcon = Icon(Icons.check, color: hexToColor("#42C88A"));
           if (step.exitCode > 0 && step.exitCode < 10000) {
             leadingIcon = Icon(Icons.error, color: hexToColor("#ED5C5C"));
@@ -477,21 +508,20 @@ class SingleBuildState extends State<SingleBuild> {
                 return;
               }
               Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => BuildLog(step)),
-                  );
-                },
-                title: Text(step.name),
-                leading: leadingIcon,
-              )
-          );
+                context,
+                MaterialPageRoute(builder: (context) => BuildLog(step)),
+              );
+            },
+            title: Text(step.name),
+            leading: leadingIcon,
+          ));
         }
         return Scaffold(
           body: Center(
-            child: ListView(
-              children: card,
-            )
-          ),);
+              child: ListView(
+            children: card,
+          )),
+        );
       },
       future: this.deepBuild,
     );
@@ -503,7 +533,11 @@ class SingleBuildState extends State<SingleBuild> {
         if (projectSnap.hasData == false ||
             (projectSnap.connectionState == ConnectionState.none &&
                 projectSnap.hasData == null)) {
-          return Scaffold(body: Center(child: CircularProgressIndicator(),),);
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         List artifacts = projectSnap.data;
@@ -521,7 +555,7 @@ class SingleBuildState extends State<SingleBuild> {
 
         // Build steps list.
         for (int i = 0; i < artifacts.length; i++) {
-          structs.Artifact artifact = artifacts[i];
+          circleciv1.Artifact artifact = artifacts[i];
           card.add(ListTile(
             onTap: () async {
               Directory dir = await getTemporaryDirectory();
@@ -533,15 +567,14 @@ class SingleBuildState extends State<SingleBuild> {
               );
             },
             title: Text(artifact.path),
-          )
-          );
+          ));
         }
         return Scaffold(
           body: Center(
               child: ListView(
-                children: card,
-              )
-          ),);
+            children: card,
+          )),
+        );
       },
       future: getArtifacts(project, shallowBuild),
     );
@@ -549,28 +582,32 @@ class SingleBuildState extends State<SingleBuild> {
 
   Widget _buildConfigViewer() {
     return FutureBuilder(
-        builder: (context, projectSnap) {
-          if (projectSnap.hasData == false ||
-              (projectSnap.connectionState == ConnectionState.none &&
-                  projectSnap.hasData == null)) {
-            return Scaffold(body: Center(child: CircularProgressIndicator(),),);
-          }
-          structs.BuildDeep build = projectSnap.data;
-          String config = build.configuration;
-
-          Widget body = Text(
-            config,
-            style: TextStyle(fontFamily: "monospace", color: Colors.white),
-          );
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+                projectSnap.hasData == null)) {
           return Scaffold(
-              backgroundColor: Colors.black,
-              body: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SingleChildScrollView(
-                  child: body,
-                ),
-              ));
-        },
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        circleciv1.BuildDeep build = projectSnap.data;
+        String config = build.configuration;
+
+        Widget body = Text(
+          config,
+          style: TextStyle(fontFamily: "monospace", color: Colors.white),
+        );
+        return Scaffold(
+            backgroundColor: Colors.black,
+            body: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SingleChildScrollView(
+                child: body,
+              ),
+            ));
+      },
       future: this.deepBuild,
     );
   }
@@ -613,7 +650,7 @@ class SingleBuildState extends State<SingleBuild> {
 }
 
 class BuildLog extends StatefulWidget {
-  final structs.BuildStep step;
+  final circleciv1.BuildStep step;
   BuildLog(this.step);
 
   @override
@@ -621,7 +658,7 @@ class BuildLog extends StatefulWidget {
 }
 
 class BuildLogState extends State<BuildLog> {
-  final structs.BuildStep step;
+  final circleciv1.BuildStep step;
   BuildLogState(this.step);
   Future<String> log;
 
@@ -644,26 +681,33 @@ class BuildLogState extends State<BuildLog> {
 
   Widget _buildLog() {
     return FutureBuilder(
-        builder: (context, projectSnap) {
-          if (projectSnap.hasData == false ||
-              (projectSnap.connectionState == ConnectionState.none &&
-                  projectSnap.hasData == null)) {
-            return Scaffold(body: Center(child: CircularProgressIndicator(),),);
-          }
-          String log = projectSnap.data;
+      builder: (context, projectSnap) {
+        if (projectSnap.hasData == false ||
+            (projectSnap.connectionState == ConnectionState.none &&
+                projectSnap.hasData == null)) {
           return Scaffold(
-            backgroundColor: Colors.black87,
-            body: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SingleChildScrollView(
-              child: Text(log, style: TextStyle(fontFamily: "monospace", color: Colors.white),),
-            ),),
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
           );
-        },
+        }
+        String log = projectSnap.data;
+        return Scaffold(
+          backgroundColor: Colors.black87,
+          body: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: SingleChildScrollView(
+              child: Text(
+                log,
+                style: TextStyle(fontFamily: "monospace", color: Colors.white),
+              ),
+            ),
+          ),
+        );
+      },
       future: getCommandLog(step.log),
     );
   }
-
 }
 
 Color hexToColor(String code) {
